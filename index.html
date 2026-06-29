@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <link rel="apple-touch-icon" href="icon.jpg">
+    <link rel="icon" type="image/jpeg" href="icon.jpg">
+    
+    <meta name="apple-mobile-web-app-title" content="정부24">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <title>정부24</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --sat: env(safe-area-inset-top, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+            box-sizing: border-box;
+        }
+        .app-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        @keyframes marquee {
+            0% { transform: translate3d(0, 0, 0); }
+            100% { transform: translate3d(-50%, 0, 0); }
+        }
+        .marquee-text { animation: marquee 14s linear infinite; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .shake { animation: shake 0.4s ease-in-out; }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .slide-up-animate { animation: slideUp 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+    </style>
+</head>
+<body class="font-sans antialiased select-none">
+
+    <div class="app-container">
+
+        <div id="global-loading" class="hidden absolute inset-0 bg-white/80 backdrop-blur-xs z-50 flex flex-col items-center justify-center gap-2">
+            <div class="w-10 h-10 border-4 border-[#0047af]/20 border-t-[#0047af] rounded-full animate-spin"></div>
+            <p id="loading-text" class="text-xs font-bold text-[#0047af] tracking-wide">보안 데이터 확인 중</p>
+        </div>
+
+        <div id="legal-notice-overlay" class="hidden absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-6 pb-20 backdrop-blur-xs">
+            <div class="bg-white w-full max-w-sm rounded-[20px] shadow-2xl overflow-hidden flex flex-col animate-[slideUp_0.25s_ease-out]">
+                <div class="p-6 pt-7 text-center">
+                    <div class="flex items-center justify-center gap-2 mb-4">
+                        <img src="logo.png" alt="정부" class="w-5 h-5 object-contain" onerror="this.src='logo.jpg'">
+                        <h3 class="text-[14.5px] font-black text-gray-900 tracking-tight">주민등록사항 조작 및 부정 사용 금지</h3>
+                    </div>
+                    <div class="text-[13px] text-gray-700 font-bold leading-relaxed space-y-3 pt-1 text-center">
+                        <p>정보통신기기에 제공된 주민등록사항을<br>조작하거나 부정하게 사용시 <span class="text-red-500 underline underline-offset-2 decoration-1 font-black">3년 이하의<br>징역</span> 또는 <span class="text-red-500 underline underline-offset-2 decoration-1 font-black">3천만원 이하의 벌금</span>에 처해 질수<br>있습니다.</p>
+                        <p class="text-[11px] text-gray-400 font-extrabold pt-1">※ 주민등록법 제37조</p>
+                    </div>
+                </div>
+                <button onclick="confirmLegalNotice()" class="w-full border-t border-gray-100 py-4 text-center text-sm font-black text-[#1a4bb0] active:bg-gray-50 cursor-pointer transition-colors">
+                    확인
+                </button>
+            </div>
+        </div>
+
+        <div id="faceid-overlay" class="hidden absolute inset-0 bg-black/40 z-50 flex items-end justify-center">
+            <div class="bg-white/95 backdrop-blur-xl w-full rounded-t-[32px] p-8 pb-[calc(var(--sab)+24px)] flex flex-col items-center shadow-2xl border-t border-white/20 slide-up-animate text-center">
+                <div class="w-10 h-1 bg-gray-300 rounded-full mb-6"></div>
+                <div class="relative w-28 h-28 flex items-center justify-center mb-5 bg-gray-50/50 rounded-full border border-gray-100 p-2 shadow-2xs">
+                    <i id="faceid-icon" class="fa-solid fa-face-id text-[72px] text-blue-600 transition-all duration-300"></i>
+                    <i id="faceid-success-icon" class="fa-solid fa-circle-check text-[72px] text-emerald-500 absolute scale-0 transition-all duration-300"></i>
+                </div>
+                <h4 id="faceid-status-text" class="text-base font-black text-gray-800 tracking-tight">정부24에서 Face ID를 사용합니다</h4>
+                <p class="text-xs text-gray-400 mt-1.5 font-bold tracking-wide">시스템 인증이 거부되거나 실패하면 아래 버튼을 이용하세요</p>
+                <div class="w-full grid grid-cols-2 gap-3 mt-8">
+                    <button onclick="cancelFaceIDToPassword()" class="w-full bg-gray-100 active:bg-gray-200 text-gray-600 font-bold py-3.5 rounded-xl text-sm cursor-pointer transition-colors">비밀번호 입력</button>
+                    <button onclick="triggerWebAuthnFaceID()" class="w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-sm cursor-pointer transition-colors">Face ID 구동</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="splash-screen" class="absolute inset-0 bg-white z-40 flex flex-col justify-between items-center py-28 transition-opacity duration-300">
+            <div class="flex-1 flex flex-col items-center justify-center gap-4">
+                <div class="w-16 h-16 rounded-full flex items-center justify-center bg-white shadow-xs">
+                    <img src="logo.png" alt="정부 로고" class="w-full h-full object-contain" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/e/ee/Government_24_logo.png'">
+                </div>
+                <div class="text-center space-y-1">
+                    <h1 class="text-xl font-black text-gray-800 tracking-tight">정부24</h1>
+                    <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Government 24</p>
+                </div>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+                <i class="fas fa-spinner animate-spin text-[#0047af] text-base"></i>
+                <p class="text-[10px] text-gray-400 font-medium">안전한 보안 환경을 구축 중입니다</p>
+            </div>
+        </div>
+
+        <div id="gov-home-page" class="flex-1 w-full flex flex-col bg-[#edf1f6] overflow-y-auto no-scrollbar pb-[calc(var(--sab)+114px)]">
+            
+            <div class="bg-white pt-[calc(var(--sat)+10px)] pb-1 px-4 flex items-center gap-1">
+                <span class="inline-block w-4 h-2.5 bg-gray-100 border border-gray-200 relative overflow-hidden shrink-0 rounded-2xs">
+                    <svg viewBox="0 0 3 2" class="w-full h-full"><rect width="3" height="2" fill="white"/><circle cx="1.5" cy="1" r="0.5" fill="#cd2e3a"/><path d="M0,0 L0.6,0.4 M0,2 L0.6,1.6 M3,0 L2.4,0.4 M3,2 L2.4,1.6" stroke="black" stroke-width="0.08"/></svg>
+                </span>
+                <span class="text-[10.5px] font-black text-gray-500 tracking-tight">이 누리집은 대한민국 공식 전자정부 누리집입니다.</span>
+            </div>
+
+            <div class="bg-white px-4 py-3.5 flex justify-between items-center border-b border-gray-100 shadow-3xs">
+                <div class="flex items-center gap-3">
+                    <img src="logo.png" alt="정부24" class="h-8 object-contain" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/e/ee/Government_24_logo.png'">
+                    <div class="h-7 w-20 flex items-center justify-center">
+                        <img src="group.jpg" alt="친구인증" class="w-full h-full object-cover" onerror="this.style.display='none'">
+                    </div>
+                </div>
+                <div class="flex items-center gap-4 text-gray-700 text-xs font-black">
+                    <button onclick="secureRedirect('마이페이지')" class="flex flex-col items-center gap-0.5 active:scale-95 transition-transform"><i class="fa-solid fa-circle-user text-sm text-blue-600"></i><span class="scale-90 origin-top text-[9px] text-blue-600 font-black">성창훈 님</span></button>
+                    <button onclick="bypassToAllMenu()" class="flex flex-col items-center gap-0.5 active:scale-95 transition-transform"><i class="fa-solid fa-bars text-sm text-gray-800"></i><span class="scale-90 origin-top text-[9px] text-gray-500 font-black">전체메뉴</span></button>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 pt-5 pb-5">
+                <div class="w-full bg-white border-[2.5px] border-[#2263df] rounded-full px-5 py-2 flex justify-between items-center shadow-sm">
+                    <input type="text" id="search-input" onkeypress="handleSearchKeyPress(event)" placeholder="정부 서비스를 쉽게 검색하세요." class="w-full bg-transparent text-gray-800 text-[13.5px] font-black tracking-tight outline-none border-none placeholder-gray-400 mr-2">
+                    <i onclick="executeRealSearch()" class="fas fa-search text-[#2263df] text-base cursor-pointer active:scale-90 transition-transform"></i>
+                </div>
+            </div>
+
+            <div class="bg-white px-4 pb-5">
+                <h3 class="text-[13px] font-black text-gray-900 mb-2.5 tracking-tight">자주 찾는 서비스</h3>
+                <div class="grid grid-cols-2 gap-2 text-[12.5px] font-black text-gray-800">
+                    <div onclick="requestAuth('main-id-page')" class="bg-[#f5f8fc] border border-gray-200 rounded-lg p-3 flex justify-between items-center cursor-pointer active:scale-98 transition-transform shadow-3xs">
+                        <span class="text-blue-700 font-black">주민등록증 확인</span>
+                        <span class="bg-[#2263df] text-white text-[8px] px-1 py-0.5 rounded-sm font-black scale-90">ON</span>
+                    </div>
+                    <div onclick="secureRedirect('토지(임야)대장')" class="bg-[#f5f8fc] border border-gray-100 rounded-lg p-3 flex justify-between items-center active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span>토지(임야)대장</span>
+                        <i class="fa-solid fa-file-pdf text-amber-500 text-xs"></i>
+                    </div>
+                    <div onclick="secureRedirect('주민등록등본(초본)')" class="bg-[#f5f8fc] border border-gray-100 rounded-lg p-3 flex justify-between items-center active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span>주민등록등본(초본)</span>
+                        <i class="fa-solid fa-file-lines text-blue-400 text-xs"></i>
+                    </div>
+                    <div onclick="secureRedirect('자동차등록원부')" class="bg-[#f5f8fc] border border-gray-100 rounded-lg p-3 flex justify-between items-center active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span>자동차등록원부</span>
+                        <i class="fa-solid fa-car-side text-blue-500 text-xs"></i>
+                    </div>
+                    <div onclick="secureRedirect('건축물대장')" class="bg-[#f5f8fc] border border-gray-100 rounded-lg p-3 flex justify-between items-center active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span>건축물대장</span>
+                        <i class="fa-solid fa-building text-orange-400 text-xs"></i>
+                    </div>
+                    <div onclick="secureRedirect('가족관계증명서')" class="bg-[#f5f8fc] border border-gray-100 rounded-lg p-3 flex justify-between items-center active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span>가족관계증명서</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square text-purple-400 text-[10px]"></i>
+                    </div>
+                </div>
+                <button onclick="secureRedirect('더보기')" class="w-full text-center text-gray-500 text-xs font-black pt-4 pb-1 active:opacity-70 cursor-pointer">더보기 <i class="fa-solid fa-plus text-[10px] ml-0.5"></i></button>
+            </div>
+
+            <div class="p-4 pt-5">
+                <h3 class="text-[13px] font-black text-gray-900 mb-3 tracking-tight">지금 봐야 할 혜택/보조금</h3>
+                <div class="grid grid-cols-2 gap-2 text-left text-gray-800">
+                    <div onclick="secureRedirect('유아학비')" class="bg-gradient-to-br from-red-50/60 to-red-50 rounded-xl p-3 border border-red-100 relative min-h-[72px] active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span class="text-[11.5px] font-black text-gray-900 block">유아학비</span>
+                        <span class="text-[10px] text-gray-500 font-black block mt-0.5">현금(감면) <br>지급</span>
+                        <i class="fa-solid fa-child-reaching text-red-300 absolute bottom-3 right-3 text-base"></i>
+                    </div>
+                    <div onclick="secureRedirect('전세보증금반환보증')" class="bg-gradient-to-br from-amber-50/60 to-amber-50 rounded-xl p-3 border border-amber-100 relative min-h-[72px] active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span class="text-[11.5px] font-black text-gray-900 block leading-tight">전세보증금반환보증 ···</span>
+                        <span class="text-[10px] text-gray-500 font-black block mt-1">현금 <br>지급</span>
+                        <i class="fa-solid fa-percent text-amber-300 absolute bottom-3 right-3 text-base"></i>
+                    </div>
+                    <div onclick="secureRedirect('초중고 입학축하금 지원')" class="bg-gradient-to-br from-blue-50/60 to-blue-50 rounded-xl p-3 border border-blue-100 relative min-h-[72px] active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span class="text-[11.5px] font-black text-gray-900 block">초중고 입학축하금 지원</span>
+                        <span class="text-[9.5px] text-gray-500 font-black block mt-0.5">현금 및<br>지역 바우처 제공</span>
+                        <i class="fa-solid fa-user-graduate text-blue-300 absolute bottom-3 right-3 text-base"></i>
+                    </div>
+                    <div onclick="secureRedirect('근로장려금')" class="bg-gradient-to-br from-purple-50/60 to-purple-50 rounded-xl p-3 border border-purple-100 relative min-h-[72px] active:scale-98 transition-transform shadow-3xs cursor-pointer">
+                        <span class="text-[11.5px] font-black text-gray-900 block">근로장려금</span>
+                        <span class="text-[10px] text-gray-500 font-black block mt-1">현금 <br>지급</span>
+                        <i class="fa-solid fa-sack-dollar text-purple-300 absolute bottom-3 right-3 text-base"></i>
+                    </div>
+                </div>
+                <button onclick="secureRedirect('더 많은 혜택 보기')" class="w-full text-center text-gray-600 text-[11px] font-black mt-4 active:opacity-70 cursor-pointer">더 많은 혜택 보기 <i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i></button>
+            </div>
+
+            <div class="absolute bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-gray-200 pt-2 pb-[calc(var(--sab)+44px)] px-5 flex justify-between items-center text-center text-[11px] font-black text-gray-400 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+                <div onclick="requestAuth('main-id-page')" class="flex-1 flex flex-col items-center cursor-pointer text-gray-900 font-black active:scale-95 transition-transform">
+                    <i class="fa-regular fa-user text-xl font-light mb-1.5 text-blue-600"></i>
+                    <span>MyGOV</span>
+                </div>
+                <div onclick="secureRedirect('주제별 보기')" class="flex-1 flex flex-col items-center cursor-pointer text-gray-400 font-black active:text-gray-900 active:scale-95 transition-transform">
+                    <i class="fa-regular fa-folder text-xl font-light mb-1.5"></i>
+                    <span>주제별 보기</span>
+                </div>
+                <div onclick="secureRedirect('문서진위확인')" class="flex-1 flex flex-col items-center cursor-pointer text-gray-400 font-black active:text-gray-900 active:scale-95 transition-transform">
+                    <i class="fa-regular fa-file-lines text-xl font-light mb-1.5"></i>
+                    <span>문서진위확인</span>
+                </div>
+                <div onclick="secureRedirect('혜택알림')" class="flex-1 flex flex-col items-center cursor-pointer text-gray-400 font-black active:text-gray-900 active:scale-95 transition-transform">
+                    <i class="fa-regular fa-bell text-xl font-light mb-1.5"></i>
+                    <span>혜택알림</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="all-menu-panel" class="hidden flex-1 w-full flex flex-col bg-[#edf1f6] overflow-y-auto no-scrollbar pb-[calc(var(--sab)+20px)]">
+            <div class="bg-white px-4 py-4 flex items-center justify-between border-b border-gray-200 shadow-3xs shrink-0">
+                <div class="flex items-center">
+                    <button onclick="closeAllMenu()" class="text-gray-800 text-sm cursor-pointer pr-3 active:scale-90 transition-transform"><i class="fas fa-chevron-left text-base"></i></button>
+                    <h3 class="text-base font-black text-gray-900 tracking-tight">전체메뉴 서비스</h3>
+                </div>
+                <span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 font-black rounded-sm">전체목록</span>
+            </div>
+            
+            <div class="p-4 space-y-4 overflow-y-auto flex-1 pb-12">
+                <div class="bg-white rounded-[20px] p-4 border border-gray-100 shadow-3xs">
+                    <h4 class="text-xs font-black text-blue-600 border-b border-gray-100 pb-2 mb-3"><i class="fa-solid fa-user-shield mr-1"></i> 주민·행정·안전</h4>
+                    <div class="grid grid-cols-1 gap-2 text-xs font-black text-gray-700">
+                        <div onclick="openVerifiedDocument('주민등록등본 교부')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>주민등록등본(초본) 교부 신청</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                        <div onclick="openVerifiedDocument('주민등록증 재발급')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>주민등록증 재발급 신청</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                        <div onclick="openVerifiedDocument('전입신고')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>인터넷 전입신고 시스템</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                        <div onclick="openVerifiedDocument('지방세 증명')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>지방세 납세증명서 발급</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-[20px] p-4 border border-gray-100 shadow-3xs">
+                    <h4 class="text-xs font-black text-amber-600 border-b border-gray-100 pb-2 mb-3"><i class="fa-solid fa-map-location-dot mr-1"></i> 부동산·토지·건축물</h4>
+                    <div class="grid grid-cols-1 gap-2 text-xs font-black text-gray-700">
+                        <div onclick="openVerifiedDocument('토지대장')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>토지(임야)대장 등본 교부</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                        <div onclick="openVerifiedDocument('건축물대장')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>건축물대장 등본 발급/열람</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                        <div onclick="openVerifiedDocument('지적도 열람')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>지적도(임야도) 등본 열람</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                        <div onclick="openVerifiedDocument('토지이용계획')" class="p-2.5 bg-gray-50 rounded-lg flex justify-between items-center cursor-pointer active:bg-gray-100"><span>토지이용계획확인서 발급</span><i class="fa-solid fa-chevron-right text-gray-300 scale-90"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="sub-functional-page" class="hidden flex-1 w-full flex flex-col bg-[#edf1f6] overflow-y-auto no-scrollbar pb-[calc(var(--sab)+24px)]">
+            <div class="bg-white px-4 py-4 flex items-center border-b border-gray-200 shadow-3xs shrink-0">
+                <button onclick="closeSubPage()" class="text-gray-800 text-sm cursor-pointer pr-3 active:scale-90 transition-transform"><i class="fas fa-chevron-left text-base"></i></button>
+                <h3 id="sub-page-title" class="text-[15px] font-black text-gray-900 tracking-tight">서비스 상세 조회</h3>
+            </div>
+            <div class="p-4 flex-1 flex flex-col justify-start gap-4"></div>
+        </div>
+
+        <div id="password-screen" class="hidden absolute inset-0 bg-white z-30 flex flex-col justify-between pt-[calc(var(--sat)+24px)] pb-[calc(var(--sab)+16px)]">
+            <div class="text-center space-y-1.5 px-6">
+                <div class="text-[#0047af] text-xl mb-0.5"><i class="fas fa-lock"></i></div>
+                <h3 class="text-base font-black text-gray-800">비밀번호 입력</h3>
+                <p id="pw-hint" class="text-xs text-gray-400 font-semibold">등록된 간편인증 비밀번호 또는 Face ID를 사용하세요.</p>
+                <div id="dot-container" class="flex justify-center gap-3.5 pt-4">
+                    <div class="w-3 h-3 rounded-full bg-gray-200"></div>
+                    <div class="w-3 h-3 rounded-full bg-gray-200"></div>
+                    <div class="w-3 h-3 rounded-full bg-gray-200"></div>
+                    <div class="w-3 h-3 rounded-full bg-gray-200"></div>
+                    <div class="w-3 h-3 rounded-full bg-gray-200"></div>
+                    <div class="w-3 h-3 rounded-full bg-gray-200"></div>
+                </div>
+            </div>
+            <div class="flex justify-center my-1 mb-6">
+                <button onclick="runRealCameraFaceID()" class="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-50 border border-blue-100 active:scale-95 transition-transform cursor-pointer shadow-2xs">
+                    <i class="fa-solid fa-face-id text-xl text-blue-600"></i>
+                    <span class="text-xs font-black text-blue-700">Face ID 생체인증</span>
+                </button>
+            </div>
+            <div class="grid grid-cols-3 gap-y-3 text-center px-12 mb-2">
+                <button onclick="pressKey('1')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">1</button>
+                <button onclick="pressKey('2')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">2</button>
+                <button onclick="pressKey('3')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">3</button>
+                <button onclick="pressKey('4')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">4</button>
+                <button onclick="pressKey('5')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">5</button>
+                <button onclick="pressKey('6')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">6</button>
+                <button onclick="pressKey('7')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">7</button>
+                <button onclick="pressKey('8')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">8</button>
+                <button onclick="pressKey('9')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">9</button>
+                <button onclick="backToHome()" class="py-3 text-xs font-black text-gray-400 active:bg-gray-100 rounded-full">취소</button>
+                <button onclick="pressKey('0')" class="py-3 text-lg font-black text-gray-800 active:bg-gray-100 rounded-full">0</button>
+                <button onclick="pressDelete()" class="py-3 text-base text-gray-600 active:bg-gray-100 rounded-full"><i class="fas fa-backspace"></i></button>
+            </div>
+        </div>
+
+        <div id="service-header" class="hidden bg-white pt-[calc(var(--sat)+14px)] pb-3 px-4 justify-between items-center z-20 relative shadow-xs shrink-0">
+            <div class="flex items-center gap-1.5">
+                <img src="logo.png" alt="정부" class="w-4 h-4 object-contain" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/e/ee/Government_24_logo.png'">
+                <span class="text-[12.5px] font-black tracking-tight text-[#1a1a1a]">주민등록증 모바일확인서비스</span>
+            </div>
+            <button onclick="backToHome()" class="text-gray-700 text-sm cursor-pointer px-1"><i class="fas fa-home"></i></button>
+        </div>
+
+        <div id="service-bg" class="hidden absolute inset-0 bg-[#f4f5f7] pointer-events-none z-0"></div>
+
+        <div id="main-id-page" class="hidden flex-1 flex flex-col justify-between z-10 relative h-[calc(100vh-var(--sat)-50px)] pb-[calc(var(--sab)+6px)]">
+            <div class="flex-1 flex flex-col px-4 pt-3.5 justify-start overflow-y-auto no-scrollbar">
+                
+                <div class="bg-white/95 rounded-[24px] border border-gray-100 flex flex-col items-center justify-between shadow-xs overflow-hidden min-h-[465px] flex-1 mb-3">
+                    
+                    <div class="p-6 pb-2 w-full flex flex-col items-center">
+                        <div class="w-[145px] h-[193px] bg-gray-100 border-2 border-gray-300 overflow-hidden shadow-xs mb-6 shrink-0 rounded-none">
+                            <img src="friend.jpg" alt="증명사진" class="w-full h-full object-cover object-top rounded-none" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'">
+                        </div>
+
+                        <div class="w-full grid grid-cols-12 gap-3 items-center px-1">
+                            <div class="col-span-5 text-left space-y-1.5">
+                                <h2 class="text-2xl font-black text-gray-900 tracking-wide">성창훈</h2>
+                                <p class="text-[14.5px] font-black text-gray-700 tracking-wider">07.10.28</p>
+                                <p class="text-[12px] text-gray-400 font-extrabold">경기도 김포시 양촌읍</p>
+                            </div>
+                            
+                            <div class="col-span-7 flex justify-end">
+                                <div class="p-1 bg-white border-2 border-gray-300 rounded-none shadow-xs">
+                                    <img id="dynamic-qr-image" src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://jb24man.github.io/schqr/%2F%3Fmode%3Dverify&color=000000" alt="QR" class="w-32 h-32 rounded-none">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full px-6 pb-4 flex flex-col gap-3 bg-white mt-auto">
+                        <div class="space-y-1">
+                            <div class="w-full h-[5px] bg-gray-100 rounded-full overflow-hidden">
+                                <div id="dynamic-timer-bar" class="h-full bg-[#1e5ecb] transition-all duration-1000 ease-linear" style="width: 100%;"></div>
+                            </div>
+                            <div class="flex justify-between text-[12.5px] font-black px-0.5">
+                                <span class="text-[#1e5ecb]">남은시간</span>
+                                <span class="text-[#1e5ecb]" id="countdown-text">30초</span>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center space-y-1 pt-[11px] border-t border-gray-100">
+                            <p class="text-[11px] text-gray-400 font-black tracking-wide uppercase">QR코드를 리더기에 스캔하세요</p>
+                            <p class="text-[15px] font-black text-gray-800 tracking-wide pt-0.5" id="realtime-clock">2026년 05월 30일 00:00:00</p>
+                        </div>
+                    </div>
+
+                    <button onclick="requestAuth('detail-id-page')" class="w-full bg-[#1a4bb0] hover:bg-[#153e94] text-white font-black py-4.5 text-center text-sm tracking-wide shadow-md cursor-pointer transition-colors active:opacity-90 border-t border-gray-100 shrink-0">
+                        상세정보 표시
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="w-full flex flex-col justify-end bg-transparent mt-auto mb-4">
+                <div class="w-full bg-gradient-to-r from-[#1e5ecb] via-[#3a54b9] to-[#5c49a6] text-white/90 text-[11.5px] font-black py-5 overflow-hidden whitespace-nowrap relative z-30 shadow-lg">
+                    <div class="inline-block marquee-text uppercase tracking-wider pl-4">
+                        보안을 위해 30초마다 QR 코드가 갱신됩니다. 캡처방지 시스템 작동 중 &nbsp;&nbsp;&nbsp;&nbsp; 본 화면은 캡처하여 사용할 수 없습니다. 캡처방지 시스템 가동 중.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="detail-id-page" class="hidden flex-1 flex flex-col justify-between z-10 relative h-[calc(100vh-var(--sat)-50px)] pb-[calc(var(--sab)+6px)]">
+            <div class="flex-1 px-4 pt-3.5 flex flex-col justify-start overflow-y-auto no-scrollbar">
+                <div class="bg-white/95 rounded-[24px] border border-white p-6 flex flex-col relative justify-between shadow-xs min-h-[505px] flex-1 mb-3">
+                    <div class="space-y-5">
+                        <div class="flex justify-center mt-1">
+                            <div class="w-[145px] h-[193px] bg-gray-100 border-2 border-gray-300 overflow-hidden shadow-xs rounded-none shrink-0">
+                                <img src="friend.jpg" alt="프로필" class="w-full h-full object-cover object-top rounded-none" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'">
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-3 px-1 pt-1">
+                            <h2 class="text-2xl font-black text-gray-900 tracking-wide">성창훈</h2>
+                            
+                            <div class="flex items-center justify-between bg-white px-0.5 py-1">
+                                <div class="space-y-0.5">
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-tight">주민등록번호</p>
+                                    <p id="rrn-display" class="text-[15.5px] font-black text-gray-800 tracking-widest text-[RRN Omitted]">071028-3******</p>
+                                </div>
+                                <div onclick="toggleRRNVisibility()" id="rrn-switch-bg" class="w-11 h-6 bg-gray-200 rounded-sm p-0.5 flex items-center cursor-pointer transition-colors duration-200">
+                                    <div id="rrn-switch-handle" class="w-5 h-5 bg-white rounded-xs shadow-md transform translate-x-0 transition-transform duration-200"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-0.5 text-gray-800 text-[13px] font-black leading-relaxed pt-1.5 px-0.5">
+                                <p>경기도 김포시 양촌읍,</p>
+                                <p>김포대로1685번길 70</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full flex flex-col justify-center items-center pt-6 pb-1 relative gap-1 mt-auto">
+                        <button onclick="quickBackToMain()" class="absolute left-0 bottom-1 w-8 h-8 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full flex items-center justify-center border border-gray-200 transition-colors pointer-events-auto cursor-pointer shadow-2xs">
+                            <i class="fas fa-chevron-left text-[11px]"></i>
+                        </button>
+                        <p class="text-[12.5px] font-black text-gray-400 tracking-wide">2025년 6월</p>
+                        <p class="text-sm font-black text-gray-500 tracking-wide">경기도 김포시장</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="w-full flex flex-col justify-end bg-transparent mt-auto mb-4">
+                <div class="w-full bg-gradient-to-r from-[#1e5ecb] via-[#3a54b9] to-[#5c49a6] text-white/90 text-[11.5px] font-black py-5 overflow-hidden whitespace-nowrap relative z-30 shadow-lg">
+                    <div class="inline-block marquee-text uppercase tracking-wider pl-4">
+                        캡처방지 시스템이 작동 중입니다. 본 화면은 캡처하여 사용할 수 없습니다.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const CORRECT_PIN = "123456";
+        let currentInput = "";
+        let pendingTargetPage = ""; 
+        let currentSelectedMenuName = ""; 
+        let isRRNVisible = false;
+        let faceTimeoutId = null;
+        
+        let timeLeft = 30;
+        let timerIntervalId = null;
+
+        const FIXED_QR_CODE_SRC = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://jb24man.github.io/schqr/%2F%3Fmode%3Dverify&color=000000";
+
+        function handleSearchKeyPress(event) {
+            if (event.key === 'Enter') {
+                executeRealSearch();
+            }
+        }
+
+        function executeRealSearch() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) return;
+
+            document.getElementById('search-input').value = "";
+            if (query.includes('주민') || query.includes('신분증') || query.includes('확인')) {
+                requestAuth('main-id-page');
+            } else {
+                // 다른 키워드 검색 시 무한 로딩 연출 구동
+                const loading = document.getElementById('global-loading');
+                const loadingText = document.getElementById('loading-text');
+                loadingText.innerText = "데이터 안전성 정밀 검증 중입니다. 잠시만 대기해 주십시오.";
+                loading.classList.remove('hidden');
+            }
+        }
+
+        function bypassToAllMenu() {
+            const loading = document.getElementById('global-loading');
+            loading.classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('gov-home-page').classList.add('hidden');
+                document.getElementById('password-screen').classList.add('hidden');
+                document.getElementById('all-menu-panel').classList.remove('hidden');
+                loading.classList.add('hidden');
+            }, 250);
+        }
+
+        function secureRedirect(menuName) {
+            currentSelectedMenuName = menuName;
+            pendingTargetPage = 'sub-functional-page'; // 🌟 무한로딩 유도 마크업 지정
+            currentInput = "";
+            updateDots();
+            
+            const hint = document.getElementById('pw-hint');
+            hint.innerText = "안전한 행정 처리를 위해 생체인증 및 비밀번호를 확인합니다.";
+            hint.className = "text-xs text-gray-400 font-semibold";
+
+            document.getElementById('gov-home-page').classList.add('hidden');
+            document.getElementById('password-screen').classList.remove('hidden');
+            
+            setTimeout(() => { runRealCameraFaceID(); }, 250);
+        }
+
+        function openVerifiedDocument(docName) {
+            closeAllMenu();
+            secureRedirect(docName);
+        }
+
+        function closeAllMenu() {
+            document.getElementById('all-menu-panel').classList.add('hidden');
+            document.getElementById('gov-home-page').classList.remove('hidden');
+        }
+
+        function toggleRRNVisibility() {
+            const rrnText = document.getElementById('rrn-display');
+            const switchBg = document.getElementById('rrn-switch-bg');
+            const switchHandle = document.getElementById('rrn-switch-handle');
+            
+            isRRNVisible = !isRRNVisible;
+            if (isRRNVisible) {
+                rrnText.innerText = "071028-3156210";
+                switchBg.classList.remove('bg-gray-200');
+                switchBg.classList.add('bg-black');
+                switchHandle.classList.remove('translate-x-0');
+                switchHandle.classList.add('translate-x-5');
+            } else {
+                rrnText.innerText = "071028-3******";
+                switchBg.classList.remove('bg-black');
+                switchBg.classList.add('bg-gray-200');
+                switchHandle.classList.remove('translate-x-5');
+                switchHandle.classList.add('translate-x-0');
+            }
+        }
+
+        // 🌟 [버퍼링 제로화] 복잡한 문자열 결합이나 지연 현상 없이 상수를 바로 꽂아넣어 깜빡임 현상을 완벽 통제한 고속 타이머
+        function startFreshCountdown() {
+            if (timerIntervalId) clearInterval(timerIntervalId);
+            timeLeft = 30;
+            
+            const timerText = document.getElementById('countdown-text');
+            const timerBar = document.getElementById('dynamic-timer-bar');
+            const qrImage = document.getElementById('dynamic-qr-image');
+            
+            timerText.innerText = "30초";
+            timerBar.style.transition = "none";
+            timerBar.style.width = "100%";
+            
+            if (qrImage && qrImage.src !== FIXED_QR_CODE_SRC) {
+                qrImage.src = FIXED_QR_CODE_SRC;
+            }
+            
+            setTimeout(() => {
+                timerBar.style.transition = "width 1s linear";
+            }, 50);
+
+            timerIntervalId = setInterval(() => {
+                timeLeft--;
+                if (timeLeft < 0) { 
+                    timeLeft = 30; 
+                    timerBar.style.transition = "none";
+                    timerBar.style.width = "100%";
+                    setTimeout(() => { timerBar.style.transition = "width 1s linear"; }, 50);
+                }
+                timerText.innerText = `${timeLeft}초`;
+                timerBar.style.width = `${(timeLeft / 30) * 100}%`;
+            }, 1000);
+        }
+
+        function confirmLegalNotice() {
+            document.getElementById('legal-notice-overlay').classList.add('hidden');
+            
+            const targetPageId = pendingTargetPage;
+            document.getElementById('gov-home-page').classList.add('hidden');
+            document.getElementById('all-menu-panel').classList.add('hidden');
+            document.getElementById('password-screen').classList.add('hidden');
+            document.getElementById('main-id-page').classList.add('hidden');
+            document.getElementById('detail-id-page').classList.add('hidden');
+            
+            if (targetPageId === 'main-id-page' || targetPageId === 'detail-id-page') {
+                document.getElementById('service-header').classList.remove('hidden');
+                document.getElementById('service-header').classList.add('flex');
+                document.getElementById('service-bg').classList.remove('hidden');
+            }
+            document.getElementById(targetPageId).classList.remove('hidden');
+
+            if (targetPageId === 'main-id-page') {
+                startFreshCountdown();
+            }
+        }
+
+        function cancelFaceIDToPassword() {
+            if (faceTimeoutId) clearTimeout(faceTimeoutId);
+            document.getElementById('faceid-overlay').classList.add('hidden');
+            const hint = document.getElementById('pw-hint');
+            hint.innerText = "Face ID 인증을 취소했습니다. 간편비밀번호를 입력하세요.";
+            hint.className = "text-xs text-amber-600 font-bold";
+        }
+
+        function runRealCameraFaceID() {
+            const overlay = document.getElementById('faceid-overlay');
+            const icon = document.getElementById('faceid-icon');
+            const successIcon = document.getElementById('faceid-success-icon');
+            const statusText = document.getElementById('faceid-status-text');
+
+            icon.classList.remove('scale-0');
+            if (successIcon) successIcon.classList.add('scale-0');
+            statusText.innerText = "정부24에서 Face ID를 사용합니다";
+            overlay.classList.remove('hidden');
+
+            setTimeout(() => {
+                triggerWebAuthnFaceID();
+            }, 400);
+        }
+
+        async function triggerWebAuthnFaceID() {
+            const icon = document.getElementById('faceid-icon');
+            const successIcon = document.getElementById('faceid-success-icon');
+            const statusText = document.getElementById('faceid-status-text');
+
+            const publicKeyCredentialCreationOptions = {
+                challenge: Uint8Array.from("gov24-security-challenge-auth", c => c.charCodeAt(0)),
+                rp: { name: "Government 24 Korea", id: window.location.hostname || "localhost" },
+                user: { id: Uint8Array.from("USER_YUCHAN_070113", c => c.charCodeAt(0)), name: "yuchan", displayName: "전유찬" },
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+                authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+                timeout: 60000
+            };
+
+            try {
+                statusText.innerText = "아이폰 시스템 인증 호출 중...";
+                await navigator.credentials.create({ publicKey: publicKeyCredentialCreationOptions });
+                
+                icon.classList.add('scale-0');
+                successIcon.classList.remove('scale-0');
+                successIcon.classList.add('scale-100');
+                statusText.innerText = "Face ID 인증 완료";
+
+                setTimeout(() => {
+                    document.getElementById('faceid-overlay').classList.add('hidden');
+                    
+                    // 🌟 분기 처리 정밀화: 모바일 신분증 코어 영역만 안내문 패널로 보내고, 다른 민원 버튼들은 예외 없이 즉각 무한 로딩 처리
+                    if (pendingTargetPage === 'main-id-page' || pendingTargetPage === 'detail-id-page') {
+                        if (pendingTargetPage === 'main-id-page') {
+                            document.getElementById('password-screen').classList.add('hidden');
+                            document.getElementById('legal-notice-overlay').classList.remove('hidden');
+                        } else {
+                            triggerNavigation(pendingTargetPage, 100);
+                        }
+                    } else {
+                        document.getElementById('password-screen').classList.add('hidden');
+                        const loading = document.getElementById('global-loading');
+                        const loadingText = document.getElementById('loading-text');
+                        loadingText.innerText = "데이터 안전성 정밀 검증 중입니다. 잠시만 대기해 주십시오.";
+                        loading.classList.remove('hidden');
+                    }
+                }, 700);
+            } catch (err) {
+                console.log("WebAuthn 로컬 시뮬레이터 우회 스위칭");
+                statusText.innerText = "정부24에서 Face ID를 사용합니다";
+            }
+        }
+
+        function triggerNavigation(targetPageId, delayTime = 100) {
+            const loading = document.getElementById('global-loading');
+            loading.classList.remove('hidden');
+
+            setTimeout(() => {
+                document.getElementById('gov-home-page').classList.add('hidden');
+                document.getElementById('all-menu-panel').classList.add('hidden');
+                document.getElementById('password-screen').classList.add('hidden');
+                document.getElementById('main-id-page').classList.add('hidden');
+                document.getElementById('detail-id-page').classList.add('hidden');
+                
+                if (targetPageId === 'main-id-page' || targetPageId === 'detail-id-page') {
+                    document.getElementById('service-header').classList.remove('hidden');
+                    document.getElementById('service-header').classList.add('flex');
+                    document.getElementById('service-bg').classList.remove('hidden');
+                }
+
+                document.getElementById(targetPageId).classList.remove('hidden');
+                loading.classList.add('hidden');
+
+                if (targetPageId === 'main-id-page') {
+                    startFreshCountdown();
+                }
+            }, delayTime);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('mode') === 'verify') {
+                setTimeout(() => {
+                    document.getElementById('splash-screen').classList.add('hidden');
+                    document.getElementById('gov-home-page').classList.add('hidden');
+                    alert("친구인증이 완료되었습니다.");
+                    pendingTargetPage = 'main-id-page';
+                    document.getElementById('legal-notice-overlay').classList.remove('hidden');
+                }, 500);
+            } else {
+                setTimeout(() => {
+                    const splash = document.getElementById('splash-screen');
+                    if(splash) {
+                        splash.style.opacity = '0';
+                        setTimeout(() => splash.classList.add('hidden'), 200);
+                    }
+                }, 400);
+            }
+        });
+
+        function requestAuth(targetPageId) {
+            pendingTargetPage = targetPageId; 
+            currentInput = "";
+            updateDots();
+            
+            const hint = document.getElementById('pw-hint');
+            hint.innerText = "등록된 간편인증 비밀번호 또는 Face ID를 사용하세요.";
+            hint.className = "text-xs text-gray-400 font-semibold";
+
+            document.getElementById('gov-home-page').classList.add('hidden');
+            document.getElementById('main-id-page').classList.add('hidden');
+            document.getElementById('password-screen').classList.remove('hidden');
+
+            setTimeout(() => { runRealCameraFaceID(); }, 250);
+        }
+
+        function quickBackToMain() { 
+            document.getElementById('detail-id-page').classList.add('hidden');
+            document.getElementById('main-id-page').classList.remove('hidden');
+            startFreshCountdown();
+        }
+
+        function backToHome() {
+            if (faceTimeoutId) clearTimeout(faceTimeoutId);
+            if (timerIntervalId) clearInterval(timerIntervalId);
+            currentInput = "";
+            updateDots();
+            isRRNVisible = true;
+            toggleRRNVisibility();
+            document.getElementById('faceid-overlay').classList.add('hidden');
+            document.getElementById('legal-notice-overlay').classList.add('hidden');
+            
+            document.getElementById('all-menu-panel').classList.add('hidden');
+            document.getElementById('password-screen').classList.add('hidden');
+            document.getElementById('main-id-page').classList.add('hidden');
+            document.getElementById('detail-id-page').classList.add('hidden');
+            document.getElementById('service-header').classList.add('hidden');
+            document.getElementById('service-bg').classList.add('hidden');
+            
+            // 글로벌 로딩 복구 원복 조치
+            document.getElementById('global-loading').classList.add('hidden');
+            document.getElementById('loading-text').innerText = "보안 데이터 확인 중";
+            
+            document.getElementById('gov-home-page').classList.remove('hidden');
+        }
+
+        function pressKey(num) {
+            if (currentInput.length >= 6) return;
+            currentInput += num;
+            updateDots();
+
+            if (currentInput.length === 6) {
+                setTimeout(() => {
+                    if (currentInput === CORRECT_PIN) {
+                        // 🌟 수동 비밀번호 검증 성공 후에도 분리 구조 작동 보장
+                        if (pendingTargetPage === 'main-id-page' || pendingTargetPage === 'detail-id-page') {
+                            if (pendingTargetPage === 'main-id-page') {
+                                document.getElementById('password-screen').classList.add('hidden');
+                                document.getElementById('legal-notice-overlay').classList.remove('hidden');
+                            } else {
+                                triggerNavigation(pendingTargetPage, 150);
+                            }
+                        } else {
+                            document.getElementById('password-screen').classList.add('hidden');
+                            const loading = document.getElementById('global-loading');
+                            const loadingText = document.getElementById('loading-text');
+                            loadingText.innerText = "데이터 안전성 정밀 검증 중입니다. 잠시만 대기해 주십시오.";
+                            loading.classList.remove('hidden');
+                        }
+                    } else {
+                        const hint = document.getElementById('pw-hint');
+                        const dotBox = document.getElementById('dot-container');
+                        hint.innerText = "비밀번호가 올바르지 않습니다. 다시 시도하세요.";
+                        hint.className = "text-xs text-red-500 font-bold animate-pulse";
+                        dotBox.classList.add('shake');
+                        currentInput = "";
+                        setTimeout(() => {
+                            updateDots();
+                            dotBox.classList.remove('shake');
+                        }, 400);
+                    }
+                }, 200);
+            }
+        }
+
+        function pressDelete() {
+            if (currentInput.length > 0) {
+                currentInput = currentInput.slice(0, -1);
+                updateDots();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            function syncRealTime() {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                const realtimeClockBox = document.getElementById('realtime-clock');
+                if (realtimeClockBox) {
+                    realtimeClockBox.innerText = `${year}년 ${month}월 ${day}일 ${hours}:${minutes}:${seconds}`;
+                }
+            }
+            setInterval(syncRealTime, 1000);
+            syncRealTime();
+        });
+
+        function updateDots() {
+            const dots = document.querySelectorAll('#dot-container div');
+            dots.forEach((dot, index) => {
+                if (index < currentInput.length) {
+                    dot.className = "w-3 h-3 rounded-full bg-blue-600 shadow-sm scale-110 transition-all";
+                } else {
+                    dot.className = "w-3 h-3 rounded-full bg-gray-200";
+                }
+            });
+        }
+    </script>
+</body>
+</html>
